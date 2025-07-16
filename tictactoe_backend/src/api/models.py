@@ -26,7 +26,7 @@ class CreateGameResponse(BaseModel):
 # PUBLIC_INTERFACE
 class MoveRequest(BaseModel):
     """Request for making a move in a game."""
-    player_symbol: str = Field(..., regex="^(X|O)$", description="Player's symbol ('X' or 'O').")
+    player_symbol: str = Field(..., pattern="^(X|O)$", description="Player's symbol ('X' or 'O').")
     position: int = Field(..., ge=0, le=8, description="Board position (0-8).")
     user_identifier: Optional[str] = Field(None, description="Player's user/session id (optional).")
 
