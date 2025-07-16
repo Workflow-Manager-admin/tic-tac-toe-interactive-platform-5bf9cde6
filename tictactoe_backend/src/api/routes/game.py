@@ -10,6 +10,9 @@ from src.api.models import (
 from src.api.services.game_logic import (
     new_board, make_move, is_move_valid, game_status, whose_turn
 )
+from src.api.routes.game_ws import emit_game_event
+
+import asyncio
 
 router = APIRouter(prefix='/game', tags=['Game'])
 
@@ -129,7 +132,8 @@ def make_game_move(
     game.winner = winner
 
     # If finished, insert GameHistory if not already
-    if next_status in (GameStatus.PLAYER_X_WON, GameStatus.PLAYER_O_WON, GameStatus.DRAW):
+    game_over = next_status in (GameStatus.PLAYER_X_WON, GameStatus.PLAYER_O_WON, GameStatus.DRAW)
+    if game_over:
         if not game.history:
             db.add(GameHistory(
                 game_id=game.id,
@@ -138,6 +142,30 @@ def make_game_move(
             ))
     db.commit()
     db.refresh(game)
+
+    # Broadcast over WebSocket:
+    # 1. "move" event always + 2. "game_over" event if the game is finished
+    try:
+        message_move = {
+            "game_id": game.id,
+            "move_number": move_number,
+            "board": new_board,
+            "symbol": player_symbol,
+            "position": position,
+            "status": next_status.value,
+        }
+        asyncio.create_task(emit_game_event(game.id, "move", message_move))
+
+        if game_over:
+            message_over = {
+                "game_id": game.id,
+                "status": next_status.value,
+                "winner": winner,
+                "board": new_board,
+            }
+            asyncio.create_task(emit_game_event(game.id, "game_over", message_over))
+    except Exception:
+        pass
 
     return MoveResponse(
         game_id=game.id,
